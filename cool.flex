@@ -104,6 +104,17 @@ BLOCKEND         \}
   *  \n \t \b \f, the result is c.
   *
   */
+  
+  <STRING>\\.     {
+                switch (yytext[1])
+                {
+                    case 'b': append(string_buf, '\b'); break;
+                    case 't': append(string_buf, '\t'); break;
+                    case 'n': append(string_buf, '\n'); break;
+                    case 'f': append(string_buf, '\f'); break;
+                    default: append(string_buf, yytext[1]);
+                }
+            }
 
 
 %%
