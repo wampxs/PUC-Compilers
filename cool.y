@@ -52,10 +52,15 @@
     %token <symbol>  TYPEID 278 OBJECTID 279
     %token ASSIGN 280 NOT 281 LE 282 ERROR 283
 
-    %type <program> program
-    %type <classes> class_list
-    %type <class_> class
-    %type <features> features_list
+     %type <program> program
+     %type <classes> class_list
+     %type <class_> class
+     %type <features> features_list
+     %type <features> features
+     %type <feature> feature
+     %type <formals> formal_list
+     %type <formal> formal
+     %type <expression> expression
 
     %right ASSIGN
     %left NOT
@@ -87,18 +92,24 @@
                     /* The class_ constructor builds a Class_ tree node with four arguments as children  */
                     $$ = class_($2, idtable.add_string("Object"), $4, stringtable.add_string(curr_filename)); }
                 | CLASS TYPEID INHERITS TYPEID '{' features_list '}' ';' {
-                    $$ = class_($2, $4, $6, stringtable.add_string(curr_filename)); }
+                    $$ = class_($2, $4, $6, stringtable.add_string(curr_filename)); };
 
-                ;
+  features_list   : features { $$ = $1; }
+              | { $$ = nil_Features(); };
 
-                features_list:		/* empty */
-                                {  $$ = nil_Features(); }
-                ;
+  features    : feature ';' { $$ = single_Features($1); }
+              | features feature ';' { $$ = append_Features($1, single_Features($2)); };
 
+  feature     : OBJECTID '(' formal_list ')' ':' TYPEID '{' expression '}' { $$ = method($1, $3, $6, $8); }
+              | OBJECTID ':' TYPEID { $$ = attr($1, $3, no_expr()); }
+              | OBJECTID ':' TYPEID ASSIGN expression { $$ = attr($1, $3, $5); };
 
+  formal_list : formal { $$ = single_Formals($1); }
+              | formal_list ',' formal { $$ = append_Formals($1, single_Formals($3)); };
+
+  formal      : OBJECTID ':' TYPEID { $$ = formal($1, $3); };
     %%
 
-    /* This function is called automatically when Bison detects a parse error. */
     void yyerror(char *s)
     {
       extern int curr_lineno;
