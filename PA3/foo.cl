@@ -1,14 +1,22 @@
-class Main {
-  x : Int;
-  y : Int <- 3;
+class Main inherits IO {
+i:Int; 
+item: Object;
+main(): Object {{
+  i<-3;
+  let hello: String <- "Hello ",
+   world: String <- "World!",
+   newline: String <- "\n"
+  in
+   
+   if (not isvoid i) then
+   out_string(hello.concat(world.concat(newline)))
+   else
+   { abort(); 0; }
+   fi;
 
-  main(): Int { 
-    (let x : Int <- 2 in
-      case x of
-        a : Int => 4;
-        b : String => 2;
-        c : Main => 1;
-      esac
-    )
-  };
+   case item of
+	s: String => s;
+	o: Object => { abort(); ""; };
+    esac;
+ }};
 };
