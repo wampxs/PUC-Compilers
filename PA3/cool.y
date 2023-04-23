@@ -65,8 +65,7 @@
      %type <expression> letexpression
      %type <expressions> expressions
      %type <cases> caselist
-     %type <case_> caseone
-
+     %type <case_> singlecase
 
     %right ASSIGN
     %left NOT
@@ -98,15 +97,19 @@
                     /* The class_ constructor builds a Class_ tree node with four arguments as children  */
                     $$ = class_($2, idtable.add_string("Object"), $4, stringtable.add_string(curr_filename)); }
                 | CLASS TYPEID INHERITS TYPEID '{' featureslist '}' ';' {
-                    $$ = class_($2, $4, $6, stringtable.add_string(curr_filename)); };
-
+                    $$ = class_($2, $4, $6, stringtable.add_string(curr_filename)); }
+                | CLASS TYPEID '{' error '}' ';' { yyclearin; $$ = NULL; }
+                | CLASS error '{' featureslist '}' ';' { yyclearin; $$ = NULL; }
+                | CLASS error '{' error '}' ';' { yyclearin; $$ = NULL; }
+                ;
   featureslist   : features { $$ = $1; }
               | { $$ = nil_Features(); };
 
   features    : feature ';' { $$ = single_Features($1); }
               | features feature ';' { $$ = append_Features($1, single_Features($2)); };
 
-  feature     : OBJECTID '(' formallist ')' ':' TYPEID '{' expression '}' { $$ = method($1, $3, $6, $8); }
+  feature     : error ';'
+              | OBJECTID '(' formallist ')' ':' TYPEID '{' expression '}' { $$ = method($1, $3, $6, $8); }
               | OBJECTID ':' TYPEID { $$ = attr($1, $3, no_expr()); }
               | OBJECTID ':' TYPEID ASSIGN expression { $$ = attr($1, $3, $5); };
 
@@ -127,18 +130,18 @@
                 | LET letexpression { $$ = $2; }
                 | CASE expression OF caselist ESAC { $$ = typcase($2, $4); }
                 | NEW TYPEID { $$ = new_($2); }
+                | STR_CONST { $$ = string_const($1); }
                 | ISVOID expression { $$ = isvoid($2); }
                 | INT_CONST { $$ = int_const($1); }
-                | STR_CONST { $$ = string_const($1); }
                 | BOOL_CONST { $$ = bool_const($1); }
-                | expression '+' expression { $$ = plus($1, $3); }
-                | expression '-' expression { $$ = sub($1, $3); }
-                | expression '*' expression { $$ = mul($1, $3); }
-                | expression '/' expression { $$ = divide($1, $3); }
                 | '~' expression { $$ = neg($2); }
                 | expression '<' expression { $$ = lt($1, $3); }
                 | expression LE expression { $$ = leq($1, $3); }
                 | expression '=' expression { $$ = eq($1, $3); }
+                | expression '+' expression { $$ = plus($1, $3); }
+                | expression '-' expression { $$ = sub($1, $3); }
+                | expression '*' expression { $$ = mul($1, $3); }
+                | expression '/' expression { $$ = divide($1, $3); }
                 | NOT expression { $$ = comp($2); }
                 | '(' expression ')' { $$ = $2; }
                 | OBJECTID { $$ = object($1); };
@@ -146,7 +149,9 @@
     letexpression   : OBJECTID ':' TYPEID IN expression { $$ = let($1, $3, no_expr(), $5); }
                 | OBJECTID ':' TYPEID ASSIGN expression IN expression { $$ = let($1, $3, $5, $7); }
                 | OBJECTID ':' TYPEID ',' letexpression { $$ = let($1, $3, no_expr(), $5); }
-                | OBJECTID ':' TYPEID ASSIGN expression ',' letexpression { $$ = let($1, $3, $5, $7); };
+                | OBJECTID ':' TYPEID ASSIGN expression ',' letexpression { $$ = let($1, $3, $5, $7); }
+                | error IN expression { yyclearin; $$ = NULL; }
+                | error ',' letexpression { yyclearin; $$ = NULL; };
 
     expressions    : expression ';' { $$ = single_Expressions($1); }
                 | expressions expression ';' { $$ = append_Expressions($1, single_Expressions($2)); };
@@ -155,9 +160,9 @@
                 | paramexprpression ',' expression { $$ = append_Expressions($1, single_Expressions($3)); }
                 | { $$ = nil_Expressions(); };
 
-    caselist    : caseone { $$ = single_Cases($1); }
-                | caselist caseone { $$ = append_Cases($1, single_Cases($2)); };
-    caseone     : OBJECTID ':' TYPEID DARROW expression ';' { $$ = branch($1, $3, $5); };
+    caselist    : singlecase { $$ = single_Cases($1); }
+                | caselist singlecase { $$ = append_Cases($1, single_Cases($2)); };
+    singlecase     : OBJECTID ':' TYPEID DARROW expression ';' { $$ = branch($1, $3, $5); };
 
     %%
 
