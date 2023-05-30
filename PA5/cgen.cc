@@ -890,20 +890,16 @@ CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTableP ct) :
 //   constant integers, strings, and booleans are provided.
 //
 //*****************************************************************
-int label_indices = 0;
-std::vector<Symbol> manage_variables;
-
-std::map<Symbol,int> argument_list;
-
-std::map<Symbol, std::map<Symbol, int> > attributes;
-
-std::map<Symbol, std::map<Symbol, std::pair<int, Symbol> > > dispTabel;
-
-Symbol present_class;
+int label_indices = 0;// para manter índices de rótulos em todo o programa
+std::vector<Symbol> manage_variables;//para gerenciar variáveis let
+std::map<Symbol,int> argument_list; // lista de argumentos do método atual cujo código está sendo gerado
+std::map<Symbol, std::map<Symbol, int> > attributes;// mantendo os atributos de todas as classes
+std::map<Symbol, std::map<Symbol, std::pair<int, Symbol> > > dispTabel; // mantendo métodos de todas as classes
+Symbol present_class;// classe atual cujo código está sendo gerado.
 
 void assign_class::code(ostream &s) {
   expr->code(s);
-
+//se faz parte de variáveis let
   for(int i = manage_variables.size()-1; i>=0; i--)
   {
     if(name == manage_variables[i])
@@ -912,7 +908,7 @@ void assign_class::code(ostream &s) {
       return;
     }
   }
-
+//se faz parte de variáveis let
   if(argument_list.find(name) != argument_list.end())
   {
     emit_store(ACC,argument_list[name]+3,SELF,s);
@@ -922,14 +918,14 @@ void assign_class::code(ostream &s) {
   		emit_store(ACC,(attributes[present_class][name]+3),SELF,s);
 	}
 }
-
+//utilitário para dispatch, coloca todos os argumentos reais na pilha e verifica se o método está sendo chamado no objeto nulo
 void dispatch_aux(ostream& s, Expressions actual, Expression expr)
 {
   for(int i=actual->first(); actual->more(i); i = actual->next(i))
   {
     actual->nth(i)->code(s);
     emit_push(ACC,s);
-    manage_variables.push_back(No_type);
+    manage_variables.push_back(No_type);// para que as variáveis let possam encontrar o deslocamento correto na pilha
   }
   expr->code(s);
   emit_bne(ACC,ZERO,label_indices,s);
@@ -945,7 +941,7 @@ void static_dispatch_class::code(ostream &s) {
 
   Symbol i = present_class;
 
-  present_class = type_name;
+  present_class = type_name;//configurando a classe atual para a classe que está sendo chamada
 
   char dispatch_label[128];
   char* class_name = present_class->get_string();
@@ -960,7 +956,7 @@ void static_dispatch_class::code(ostream &s) {
 
   for(int i=0; i<num_arguments; i++)
   {
-    manage_variables.pop_back();
+    manage_variables.pop_back();// para que as variáveis de let possam encontrar o deslocamento correto na sta
   }
   present_class = i;
 }
@@ -993,12 +989,12 @@ void dispatch_class::code(ostream &s) {
 void cond_class::code(ostream &s) {
 
  int else_label = label_indices++;
- pred->code(s);
+ pred->code(s);  //expressão de condição avaliada
  emit_load(T1,3,ACC,s);
- emit_beqz(T1,else_label,s);
+ emit_beqz(T1,else_label,s); //verificando se é falso, se é pula para o fim do loop
  then_exp->code(s);
  int endif_label = label_indices++;
- emit_branch(endif_label,s);
+ emit_branch(endif_label,s); //pula para o final da instrução if
  emit_label_def(else_label,s);
  else_exp->code(s);
  emit_label_def(endif_label,s);
@@ -1007,12 +1003,12 @@ void cond_class::code(ostream &s) {
 void loop_class::code(ostream &s) {
  int loop_label = label_indices++;
  emit_label_def(loop_label,s);
- pred->code(s);
+ pred->code(s); //expressão de condição avaliada
  int loop_end = label_indices++;
- emit_load(T1,3,ACC,s);
+ emit_load(T1,3,ACC,s);  //verificando se é falso, se é pula para o fim do loop
  emit_beqz(T1,loop_end,s);
- body->code(s);
- emit_branch(loop_label,s);
+ body->code(s); // código do corpo do loop
+ emit_branch(loop_label,s); //voltando para verificar a condição do loop
  emit_label_def(loop_end,s);
  emit_move(ACC,ZERO,s);
 }
@@ -1102,7 +1098,7 @@ void CgenClassTable::code_prototypeObjects()
 
 void CgenClassTable::code_class_nameTab()
 { str << CLASSNAMETAB << LABEL;
-
+//iterando sobre todas as classes no vetor e adicionando seus nomes à tabela
   for(int i = classes_vector.size()-1;i>-1;i--)
   {
     char* name = (classes_vector[i])->get_name()->get_string();
