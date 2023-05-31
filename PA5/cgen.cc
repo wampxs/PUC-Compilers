@@ -890,16 +890,20 @@ CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTableP ct) :
 //   constant integers, strings, and booleans are provided.
 //
 //*****************************************************************
-int label_indices = 0;// para manter índices de rótulos em todo o programa
-std::vector<Symbol> manage_variables;//para gerenciar variáveis let
-std::map<Symbol,int> argument_list; // lista de argumentos do método atual cujo código está sendo gerado
-std::map<Symbol, std::map<Symbol, int> > attributes;// mantendo os atributos de todas as classes
-std::map<Symbol, std::map<Symbol, std::pair<int, Symbol> > > dispTabel; // mantendo métodos de todas as classes
-Symbol present_class;// classe atual cujo código está sendo gerado.
+int label_indices = 0;
+std::vector<Symbol> manage_variables;
+
+std::map<Symbol,int> argument_list;
+
+std::map<Symbol, std::map<Symbol, int> > attributes;
+
+std::map<Symbol, std::map<Symbol, std::pair<int, Symbol> > > dispTabel;
+
+Symbol present_class;
 
 void assign_class::code(ostream &s) {
   expr->code(s);
-//se faz parte de variáveis let
+
   for(int i = manage_variables.size()-1; i>=0; i--)
   {
     if(name == manage_variables[i])
@@ -908,7 +912,7 @@ void assign_class::code(ostream &s) {
       return;
     }
   }
-//se faz parte de variáveis let
+
   if(argument_list.find(name) != argument_list.end())
   {
     emit_store(ACC,argument_list[name]+3,SELF,s);
@@ -918,14 +922,14 @@ void assign_class::code(ostream &s) {
   		emit_store(ACC,(attributes[present_class][name]+3),SELF,s);
 	}
 }
-//utilitário para dispatch, coloca todos os argumentos reais na pilha e verifica se o método está sendo chamado no objeto nulo
+
 void dispatch_aux(ostream& s, Expressions actual, Expression expr)
 {
   for(int i=actual->first(); actual->more(i); i = actual->next(i))
   {
     actual->nth(i)->code(s);
     emit_push(ACC,s);
-    manage_variables.push_back(No_type);// para que as variáveis let possam encontrar o deslocamento correto na pilha
+    manage_variables.push_back(No_type);
   }
   expr->code(s);
   emit_bne(ACC,ZERO,label_indices,s);
@@ -941,7 +945,7 @@ void static_dispatch_class::code(ostream &s) {
 
   Symbol i = present_class;
 
-  present_class = type_name;//configurando a classe atual para a classe que está sendo chamada
+  present_class = type_name;
 
   char dispatch_label[128];
   char* class_name = present_class->get_string();
@@ -956,7 +960,7 @@ void static_dispatch_class::code(ostream &s) {
 
   for(int i=0; i<num_arguments; i++)
   {
-    manage_variables.pop_back();// para que as variáveis de let possam encontrar o deslocamento correto na sta
+    manage_variables.pop_back();
   }
   present_class = i;
 }
@@ -989,12 +993,12 @@ void dispatch_class::code(ostream &s) {
 void cond_class::code(ostream &s) {
 
  int else_label = label_indices++;
- pred->code(s);  //expressão de condição avaliada
+ pred->code(s);
  emit_load(T1,3,ACC,s);
- emit_beqz(T1,else_label,s); //verificando se é falso, se é pula para o fim do loop
+ emit_beqz(T1,else_label,s);
  then_exp->code(s);
  int endif_label = label_indices++;
- emit_branch(endif_label,s); //pula para o final da instrução if
+ emit_branch(endif_label,s);
  emit_label_def(else_label,s);
  else_exp->code(s);
  emit_label_def(endif_label,s);
@@ -1003,12 +1007,12 @@ void cond_class::code(ostream &s) {
 void loop_class::code(ostream &s) {
  int loop_label = label_indices++;
  emit_label_def(loop_label,s);
- pred->code(s); //expressão de condição avaliada
+ pred->code(s);
  int loop_end = label_indices++;
- emit_load(T1,3,ACC,s);  //verificando se é falso, se é pula para o fim do loop
+ emit_load(T1,3,ACC,s);
  emit_beqz(T1,loop_end,s);
- body->code(s); // código do corpo do loop
- emit_branch(loop_label,s); //voltando para verificar a condição do loop
+ body->code(s);
+ emit_branch(loop_label,s);
  emit_label_def(loop_end,s);
  emit_move(ACC,ZERO,s);
 }
@@ -1092,13 +1096,60 @@ void CgenClassTable::code_prototypeObjects()
 
     std::map <Symbol,int> attributeList;
     attributes.insert(std::pair<Symbol, std::map<Symbol, int> >(classes_vector[i]->get_name(),attributeList));
-    code_attrList(classes_vector[i],classes_vector[i]->get_name());
+    //code_attrList(classes_vector[i],classes_vector[i]->get_name());
   }
+}
+
+
+void CgenClassTable::code_obj_init()
+{
+  for(int i=0; i<classes_vector.size(); i++)
+  {
+    str << classes_vector[i]->get_name() << CLASSINIT_SUFFIX << LABEL;
+    code_class_init(classes_vector[i]);
+  }
+}
+
+void CgenClassTable::code_class_init(CgenNode* n)
+{
+  emit_push(FP,str);
+  emit_push(SELF,str);
+  emit_push(RA,str);
+  emit_addiu(FP,SP,4,str);
+  emit_move(SELF,ACC,str);
+
+  if(n->get_name()!=Object)
+  {
+    str << JAL << n->get_parentnd()->get_name()->get_string()<<"_init"<<endl;
+  }
+
+  for(int i=n->features->first(); n->features->more(i); i=n->features->next(i))
+  {
+    attr_class* attr = dynamic_cast<attr_class*>(n->features->nth(i));
+    if(attr != NULL)
+    {
+      Expression e = attr->init;
+      if(e->get_type() != NULL)
+      {
+        attr->init->code(str);
+        emit_store(ACC,(attributes[n->get_name()][attr->name]+3),SELF,str);
+
+	emit_addiu(A1,SELF,(attributes[n->get_name()][attr->name]+3)*4,str);
+	emit_jal("_GenGC_Assign",str);
+      }
+    }
+  }
+  emit_move(ACC,SELF,str);
+  emit_load(FP,3,SP,str);
+  emit_load(SELF,2,SP,str);
+  emit_load(RA,1,SP,str);
+  emit_addiu(SP,SP,12,str);
+  str << "\tjr $ra"<<endl;
 }
 
 void CgenClassTable::code_class_nameTab()
 { str << CLASSNAMETAB << LABEL;
-//iterando sobre todas as classes no vetor e adicionando seus nomes à tabela
+
   for(int i = classes_vector.size()-1;i>-1;i--)
   {
     char* name = (classes_vector[i])->get_name()->get_string();
@@ -1115,7 +1166,7 @@ void CgenClassTable::code_dispTab()
   {
     Symbol class_name = (list->hd())->get_name();
     std::vector<Symbol> v;
-    make_dispTab(list->hd(),class_name,&v);
+    //make_dispTab(list->hd(),class_name,&v);
     std::map<Symbol,std::pair<int, Symbol> > methodList = dispTabel[list->hd()->get_name()];
 
     str<< class_name << DISPTAB_SUFFIX << LABEL;
@@ -1130,13 +1181,23 @@ void CgenClassTable::code_dispTab()
   }
 }
 
-void CgenClassTable::code_obj_init()
+
+int CgenClassTable::numOfattr(CgenNode* n)
 {
-  for(int i=0; i<classes_vector.size(); i++)
+  int count = 0;
+  while(n->get_name() != Object)
   {
-    str << classes_vector[i]->get_name() << CLASSINIT_SUFFIX << LABEL;
-    code_class_init(classes_vector[i]);
+    for (int i = n->features->first(); n->features->more(i); i = n->features->next(i))
+    {
+      attr_class* a= dynamic_cast<attr_class*>(n->features->nth(i));
+      if(a != NULL)
+      {
+        count++;
+      }
+    }
+    n = n->get_parentnd();
   }
+  return count;
 }
 
 void CgenClassTable::code_class_methods()
