@@ -77,6 +77,9 @@ class Expression_class : public tree_node {
 public:
    tree_node *copy()		 { return copy_Expression(); }
    virtual Expression copy_Expression() = 0;
+   virtual bool is_empty() {
+       return false;
+   }
 
 #ifdef Expression_EXTRAS
    Expression_EXTRAS
@@ -764,6 +767,9 @@ public:
    }
    Expression copy_Expression();
    void dump(ostream& stream, int n);
+   bool is_empty() {
+       return true;
+   }
 
 #ifdef Expression_SHARED_EXTRAS
    Expression_SHARED_EXTRAS

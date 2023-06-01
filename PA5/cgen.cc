@@ -1021,36 +1021,199 @@ void typcase_class::code(ostream &s) {
 }
 
 void block_class::code(ostream &s) {
+  for (int i = body->first(); body->more(i); i = body->next(i)) {
+        body->nth(i)->code(s);
+    }
 }
 
 void let_class::code(ostream &s) {
+  init->code(s);
+
+    if (init->is_empty()) {
+        if (type_decl == Str) {
+            emit_load_string(ACC, stringtable.lookup_string(""), s);
+        } else if (type_decl == Int) {
+            emit_load_int(ACC, inttable.lookup_string("0"), s);
+        } else if (type_decl == Bool) {
+            emit_load_bool(ACC, BoolConst(0), s);
+        }
+    }
+
+    emit_push(ACC, s);
+
+    body->code(s);
+
+    emit_addiu(SP, SP, 4, s);
 }
 
 void plus_class::code(ostream &s) {
+  // eval e1 and put the result on the stack
+  e1->code(s);
+  emit_push(ACC, s);
+
+  // eval e2 and copy the object; the new object is in $a0
+  e2->code(s);
+  emit_jal("Object.copy", s);
+
+  // $t1 = stack_pop(); $t1 points to e1 object
+  emit_addiu(SP, SP, 4, s);
+  emit_load(T1, 0, SP, s);
+
+  // $t2 = $a0; $t2 points to e2 object
+  emit_move(T2, ACC, s);
+
+  // $t1 = $t1.int
+  emit_fetch_int(T1, T1, s);
+  // $t2 = $t2.int
+  emit_fetch_int(T2, T2, s);
+
+  // $t3 = $t1 + t2
+  emit_add(T3, T1, T2, s);
+  // $a0.int = $t3
+  emit_store(T3, 3, ACC, s);
 }
 
 void sub_class::code(ostream &s) {
+  e1->code(s);
+  emit_push(ACC, s);
+
+  e2->code(s);
+  emit_jal("Object.copy", s);
+
+  emit_addiu(SP, SP, 4, s);
+  emit_load(T1, 0, SP, s);
+
+  emit_move(T2, ACC, s);
+
+  emit_fetch_int(T1, T1, s);
+  emit_fetch_int(T2, T2, s);
+
+  emit_sub(T3, T1, T2, s);
+  emit_store(T3, 3, ACC, s);
 }
 
 void mul_class::code(ostream &s) {
+  e1->code(s);
+  emit_push(ACC, s);
+
+  e2->code(s);
+  emit_jal("Object.copy", s);
+
+  emit_addiu(SP, SP, 4, s);
+  emit_load(T1, 0, SP, s);
+
+  emit_move(T2, ACC, s);
+
+  emit_fetch_int(T1, T1, s);
+  emit_fetch_int(T2, T2, s);
+
+  emit_mul(T3, T1, T2, s);
+  emit_store(T3, 3, ACC, s);
 }
 
 void divide_class::code(ostream &s) {
+  e1->code(s);
+  emit_push(ACC, s);
+
+  e2->code(s);
+  emit_jal("Object.copy", s);
+
+  emit_addiu(SP, SP, 4, s);
+  emit_load(T1, 0, SP, s);
+
+  emit_move(T2, ACC, s);
+
+  emit_fetch_int(T1, T1, s);
+  emit_fetch_int(T2, T2, s);
+
+  emit_div(T3, T1, T2, s);
+  emit_store(T3, 3, ACC, s);
 }
 
 void neg_class::code(ostream &s) {
+  e1->code(s);
+  emit_jal("Object.copy", s);
+
+  emit_fetch_int(T1, ACC, s);
+  emit_neg(T1, T1, s);
+  emit_store(T1, 3, ACC, s);
 }
 
 void lt_class::code(ostream &s) {
+  e1->code(s);
+  emit_push(ACC, s);
+
+  e2->code(s);
+
+  emit_addiu(SP, SP, 4, s);
+  emit_load(T1, 0, SP, s);
+
+  emit_move(T2, ACC, s);
+
+  emit_fetch_int(T1, T1, s);
+  emit_fetch_int(T2, T2, s);
+
+  emit_load_bool(ACC, BoolConst(1), s);
+  emit_blt(T1, T2, label_indices, s);
+
+  emit_load_bool(ACC, BoolConst(0), s);
+  emit_label_def(label_indices++, s);
 }
 
 void eq_class::code(ostream &s) {
+  e1->code(s);
+  emit_push(ACC, s);
+  e2->code(s);
+
+  emit_addiu(SP, SP, 4, s);
+  emit_load(T1, 0, SP, s);
+
+  emit_move(T2, ACC, s);
+
+  if (e1->type == Int || e1->type == Str || e1->type == Bool) {
+      emit_load_bool(ACC, BoolConst(1), s);
+      emit_load_bool(A1, BoolConst(0), s);
+      emit_jal("equality_test", s);
+      return;
+  }
+
+  emit_load_bool(ACC, BoolConst(1), s);
+  emit_beq(T1, T2, label_indices, s);
+  emit_load_bool(ACC, BoolConst(0), s);
+  emit_label_def(label_indices++, s);
 }
 
 void leq_class::code(ostream &s) {
+  e1->code(s);
+  emit_push(ACC, s);
+
+  e2->code(s);
+
+  emit_addiu(SP, SP, 4, s);
+  emit_load(T1, 0, SP, s);
+
+  emit_move(T2, ACC, s);
+
+  emit_fetch_int(T1, T1, s);
+  emit_fetch_int(T2, T2, s);
+
+  emit_load_bool(ACC, BoolConst(1), s);
+  emit_bleq(T1, T2, label_indices, s);
+
+  emit_load_bool(ACC, BoolConst(0), s);
+  emit_label_def(label_indices++, s);
 }
 
 void comp_class::code(ostream &s) {
+  e1->code(s);
+  emit_fetch_int(T1, ACC, s);
+
+  emit_load_bool(ACC, BoolConst(1), s);
+
+  emit_beq(T1, ZERO, label_indices, s);
+  emit_load_bool(ACC, BoolConst(0), s);
+
+  emit_label_def(label_indices++, s);
 }
 
 void int_const_class::code(ostream& s)
@@ -1072,12 +1235,53 @@ void bool_const_class::code(ostream& s)
 }
 
 void new__class::code(ostream &s) {
+  if (type_name != SELF_TYPE) {
+        emit_load_address(ACC, (char *) (std::string(type_name->get_string()) + PROTOBJ_SUFFIX).c_str(), s);
+        emit_jal("Object.copy", s);
+        emit_jal((char *) (std::string(type_name->get_string()) + CLASSINIT_SUFFIX).c_str(), s);
+        return;
+    }
+
+    emit_load_address(T1, CLASSOBJTAB, s);
+
+    // $t2 = self.tag
+    emit_load(T2, 0, SELF, s);
+    // $t2 = $t2 * 8
+    emit_load_imm(T3, 8, s);
+    emit_mul(T2, T2, T3, s);
+    // $t1 += offset in the CLASSOBJTAB
+    emit_addu(T1, T1, T2, s);
+    // $t1 now points to SELF_TYPE_CLASS_protObj
+
+    // push $t1 to the stack
+    emit_push(T1, s);
+
+    emit_load(ACC, 0, T1, s);
+    emit_jal("Object.copy", s);
+
+    // pop old pointer from the stack to $t1
+    emit_addiu(SP, SP, 4, s);
+    emit_load(T1, 0, SP, s);
+
+    // $t1 += 1 so it now points to SELF_TYPE_CLASS_init
+    emit_load(T1, 1, T1, s);
+    emit_jalr(T1, s);
 }
 
 void isvoid_class::code(ostream &s) {
+  e1->code(s);
+  emit_move(T1, ACC, s);
+
+  emit_load_bool(ACC, BoolConst(1), s);
+
+  emit_beq(T1, ZERO, label_indices, s);
+  emit_load_bool(ACC, BoolConst(0), s);
+
+  emit_label_def(label_indices++, s);
 }
 
 void no_expr_class::code(ostream &s) {
+  emit_move(ACC, ZERO, s);
 }
 
 void object_class::code(ostream &s) {
