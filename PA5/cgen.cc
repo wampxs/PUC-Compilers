@@ -1096,10 +1096,49 @@ void CgenClassTable::code_prototypeObjects()
 
     std::map <Symbol,int> attributeList;
     attributes.insert(std::pair<Symbol, std::map<Symbol, int> >(classes_vector[i]->get_name(),attributeList));
-    //code_attrList(classes_vector[i],classes_vector[i]->get_name());
+    code_attrList(classes_vector[i],classes_vector[i]->get_name());
   }
 }
 
+void CgenClassTable::code_attrList(CgenNode* nome,Symbol current_class)
+{
+  if(nome->get_name() != Object)
+  {
+    code_attrList(nome->get_parentnd(),current_class);
+  }
+  for(int i = nome->features->first();nome->features->more(i); i = nome->features->next(i))
+  {
+    attr_class* attr = dynamic_cast<attr_class*>(nome->features->nth(i));
+    if(attr != NULL)
+    {
+      if(attr->type_decl == Int)
+      {
+        IntEntry* Int_Entry = inttable.lookup_string("0");
+        str <<WORD;
+        Int_Entry->code_ref(str);
+        str<<endl;
+      }
+      else if(attr->type_decl == Str)
+      {
+        StringEntry* String_Entry = stringtable.lookup_string("");
+        str << WORD;
+        String_Entry->code_ref(str);
+        str<<endl;
+      }
+      else if(attr->type_decl == Bool)
+      {
+        str << WORD;
+        falsebool.code_ref(str);
+        str << endl;
+      }
+      else
+      {
+        str << WORD << 0 << endl;
+      }
+      attributes[current_class].insert(std::pair<Symbol,int>(attr->name,attributes[current_class].size()));
+    }
+  }
+}
 
 void CgenClassTable::code_obj_init()
 {
@@ -1181,6 +1220,35 @@ void CgenClassTable::code_dispTab()
   }
 }
 
+
+//TABELAS DE DESPACHO
+
+void CgenClassTable::make_dispTab(CgenNode* nome, Symbol current_class, std::vector<Symbol>* met_ordered)
+{
+  if(nome->get_name() != Object)
+  {
+    make_dispTab(nome->get_parentnd(),current_class,met_ordered);
+  }
+
+  for(int i = nome->features->first(); nome->features->more(i); i=nome->features->next(i))
+  {
+    method_class* Method = dynamic_cast<method_class*>(nome->features->nth(i));
+    if( Method!= NULL)
+    {
+      std::map<Symbol, std::pair<int,Symbol> > methodList = dispTabel[current_class];
+      if(methodList.find(Method->name) != methodList.end())
+      {
+        methodList[Method->name].second = nome->get_name();
+        dispTabel[current_class] = methodList;
+      }
+      else
+      {
+        dispTabel[current_class].insert(std::pair<Symbol,std::pair<int, Symbol> >(Method->name,std::pair<int,Symbol>(dispTabel[current_class].size(),nome->get_name())));
+        (*met_ordered).push_back(Method->name);
+      }
+    }
+  }
+}
 
 int CgenClassTable::numOfattr(CgenNode* n)
 {
